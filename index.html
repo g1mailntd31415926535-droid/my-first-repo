@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Task Manager - Tung Duong</title>
+</head>
+<body>
+    <h2>Danh sách công việc của tôi</h2>
+
+    <!-- 1. Phần HTML: Ô nhập chữ và Nút bấm -->
+    <input type="text" id="taskInput" placeholder="Nhập công việc cần làm...">
+    <button id="addBtn">Thêm công việc</button>
+
+    <!-- Nơi hiển thị danh sách công việc -->
+    <ul id="taskList"></ul>
+
+    <!-- 2. Phần JavaScript: Xử lý logic khi người dùng bấm nút -->
+    <script>
+        // Lấy các phần tử HTML đưa vào biến JavaScript để điều khiển
+        const input = document.getElementById('taskInput');
+        const button = document.getElementById('addBtn');
+        const list = document.getElementById('taskList');
+
+        // Lắng nghe sự kiện: Khi người dùng click vào nút "Thêm công việc"
+        button.addEventListener('click', function() {
+            const noiDung = input.value; // Lấy chữ người dùng vừa gõ
+            
+            if (noiDung === '') {
+                alert('Vui lòng nhập công việc!');
+                return;
+            }
+
+            // Tạo một dòng mới (thẻ <li>) và gắn vào danh sách trên màn hình
+            const dongMoi = document.createElement('li');
+            dongMoi.textContent = noiDung;
+            list.appendChild(dongMoi);
+
+            // Xóa trắng ô nhập sau khi thêm xong
+            input.value = '';
+        });
+    </script>
+</body>
+</html>
