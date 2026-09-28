@@ -1,43 +1,179 @@
 <!DOCTYPE html>
-<html>
+<html lang="vi">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Task Manager - Tung Duong</title>
+    <!-- Nhúng thư viện Supabase Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 550px; margin: 40px auto; padding: 0 20px; line-height: 1.6; }
+        h2 { color: #1a73e8; }
+        .box { border: 1px solid #ddd; padding: 20px; border-radius: 8px; margin-bottom: 20px; background: #fafafa; }
+        input[type="text"], input[type="email"], input[type="password"] { width: 70%; padding: 8px; margin: 5px 0; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 8px 14px; background: #1a73e8; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #1557b0; }
+        button.delete-btn { background: #dc3545; margin-left: 10px; padding: 4px 8px; font-size: 12px; }
+        ul { list-style: none; padding: 0; }
+        li { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; }
+        .completed { text-decoration: line-through; color: #888; }
+        #appSection { display: none; }
+    </style>
 </head>
 <body>
-    <h2>Danh sách công việc của tôi</h2>
+    <h2>Task Manager</h2>
 
-    <!-- 1. Phần HTML: Ô nhập chữ và Nút bấm -->
-    <input type="text" id="taskInput" placeholder="Nhập công việc cần làm...">
-    <button id="addBtn">Thêm công việc</button>
+    <!-- Khu vực Đăng nhập / Đăng ký (Supabase Auth) -->
+    <div id="authSection" class="box">
+        <h3>Đăng nhập / Đăng ký</h3>
+        <input type="email" id="emailInput" placeholder="Email của bạn..."><br>
+        <input type="password" id="passwordInput" placeholder="Mật khẩu (tối thiểu 6 ký tự)..."><br><br>
+        <button id="loginBtn">Đăng nhập</button>
+        <button id="signupBtn">Đăng ký</button>
+        <p id="authMessage"></p>
+    </div>
 
-    <!-- Nơi hiển thị danh sách công việc -->
-    <ul id="taskList"></ul>
+    <!-- Khu vực Quản lý công việc (CRUD) -->
+    <div id="appSection" class="box">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span id="userEmail"></span>
+            <button id="logoutBtn" style="background: #555;">Đăng xuất</button>
+        </div>
+        <hr>
+        <div>
+            <input type="text" id="taskInput" placeholder="Nhập công việc cần làm...">
+            <button id="addBtn">Thêm</button>
+        </div>
+        <ul id="taskList"></ul>
+    </div>
 
-    <!-- 2. Phần JavaScript: Xử lý logic khi người dùng bấm nút -->
     <script>
-        // Lấy các phần tử HTML đưa vào biến JavaScript để điều khiển
-        const input = document.getElementById('taskInput');
-        const button = document.getElementById('addBtn');
-        const list = document.getElementById('taskList');
+        // 1. Khởi tạo kết nối Supabase RESTful API
+        const SUPABASE_URL = 'https://your-project-id.supabase.co';
+        const SUPABASE_ANON_KEY = 'your-anon-public-key';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // Lắng nghe sự kiện: Khi người dùng click vào nút "Thêm công việc"
-        button.addEventListener('click', function() {
-            const noiDung = input.value; // Lấy chữ người dùng vừa gõ
-            
-            if (noiDung === '') {
-                alert('Vui lòng nhập công việc!');
-                return;
-            }
+        // Lấy các phần tử DOM
+        const authSection = document.getElementById('authSection');
+        const appSection = document.getElementById('appSection');
+        const emailInput = document.getElementById('emailInput');
+        const passwordInput = document.getElementById('passwordInput');
+        const authMessage = document.getElementById('authMessage');
+        const userEmailSpan = document.getElementById('userEmail');
+        const taskInput = document.getElementById('taskInput');
+        const taskList = document.getElementById('taskList');
 
-            // Tạo một dòng mới (thẻ <li>) và gắn vào danh sách trên màn hình
-            const dongMoi = document.createElement('li');
-            dongMoi.textContent = noiDung;
-            list.appendChild(dongMoi);
-
-            // Xóa trắng ô nhập sau khi thêm xong
-            input.value = '';
+        // 2. Xử lý Authentication (Đăng ký, Đăng nhập, Đăng xuất)
+        document.getElementById('signupBtn').addEventListener('click', async () => {
+            const { data, error } = await supabaseClient.auth.signUp({
+                email: emailInput.value,
+                password: passwordInput.value
+            });
+            authMessage.textContent = error ? error.message : 'Đăng ký thành công! Hãy đăng nhập.';
         });
+
+        document.getElementById('loginBtn').addEventListener('click', async () => {
+            const { data, error } = await supabaseClient.auth.signInWithPassword({
+                email: emailInput.value,
+                password: passwordInput.value
+            });
+            if (error) {
+                authMessage.textContent = 'Lỗi: ' + error.message;
+            } else {
+                checkSession();
+            }
+        });
+
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            await supabaseClient.auth.signOut();
+            checkSession();
+        });
+
+        async function checkSession() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+                authSection.style.display = 'none';
+                appSection.style.display = 'block';
+                userEmailSpan.textContent = 'Xin chào: ' + session.user.email;
+                fetchTasks();
+            } else {
+                authSection.style.display = 'block';
+                appSection.style.display = 'none';
+            }
+        }
+
+        // 3. Thao tác CRUD với bảng 'tasks' trên PostgreSQL
+        // READ: Đọc danh sách công việc từ Database
+        async function fetchTasks() {
+            taskList.innerHTML = '';
+            const { data: tasks, error } = await supabaseClient
+                .from('tasks')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (!error && tasks) {
+                tasks.forEach(task => renderTask(task));
+            }
+        }
+
+        // CREATE: Thêm công việc mới
+        document.getElementById('addBtn').addEventListener('click', async () => {
+            const title = taskInput.value.trim();
+            if (!title) return;
+
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            const { error } = await supabaseClient
+                .from('tasks')
+                .insert([{ title: title, is_completed: false, user_id: user.id }]);
+
+            if (!error) {
+                taskInput.value = '';
+                fetchTasks();
+            }
+        });
+
+        // UPDATE: Đánh dấu hoàn thành công việc
+        async function toggleTask(id, currentStatus) {
+            const { error } = await supabaseClient
+                .from('tasks')
+                .update({ is_completed: !currentStatus })
+                .eq('id', id);
+
+            if (!error) fetchTasks();
+        }
+
+        // DELETE: Xóa công việc
+        async function deleteTask(id) {
+            const { error } = await supabaseClient
+                .from('tasks')
+                .delete()
+                .eq('id', id);
+
+            if (!error) fetchTasks();
+        }
+
+        // Hàm vẽ từng dòng công việc lên DOM
+        function renderTask(task) {
+            const li = document.createElement('li');
+            
+            const span = document.createElement('span');
+            span.textContent = task.title;
+            span.style.cursor = 'pointer';
+            if (task.is_completed) span.classList.add('completed');
+            span.addEventListener('click', () => toggleTask(task.id, task.is_completed));
+
+            const delBtn = document.createElement('button');
+            delBtn.textContent = 'Xóa';
+            delBtn.className = 'delete-btn';
+            delBtn.addEventListener('click', () => deleteTask(task.id));
+
+            li.appendChild(span);
+            li.appendChild(delBtn);
+            taskList.appendChild(li);
+        }
+
+        // Kiểm tra phiên đăng nhập ngay khi mở trang
+        checkSession();
     </script>
 </body>
 </html>
